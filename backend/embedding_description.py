@@ -3,6 +3,7 @@ from typing import List, Dict
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer
 import numpy as np
+import sdg_constants
 from sdg_constants import SDG_LABELS, SDG_NAMES, SDG_DESCS
 
 # --- Zero-shot and embedding models (lazy-load) ---
@@ -57,10 +58,10 @@ def embedding_similarity_scores(text: str, label_texts: List[str]) -> np.ndarray
     sims = (sims - sims.min()) / (sims.max() - sims.min() + 1e-8)
     return sims
 
-def ensemble_scores(zs: np.ndarray, es: np.ndarray, alpha: float = 0.8) -> np.ndarray:
+def ensemble_scores(zs: np.ndarray, es: np.ndarray, alpha: float = 0.0) -> np.ndarray:
     """
     Combine zero-shot and embedding scores.
-    alpha: weight for zero-shot (default 0.8 means 80% zero-shot, 20% embedding)
+    alpha: weight for zero-shot (default 0.0 means 0% zero-shot, 100% embedding)
     """
     return alpha * zs + (1 - alpha) * es
 
@@ -90,7 +91,7 @@ def classify_text(
         raise ValueError("Input text is empty. Please provide a project description.")
     
     # Cap text length for processing speed
-    text = text[:6000]
+    text = text[:6000].lower()
     
     # Zero-shot classification
     zs, zs_details = zero_shot_scores(text, SDG_NAMES)
@@ -117,8 +118,8 @@ def classify_text(
     
     if use_ensemble:
         # Embedding similarity against SDG descriptions
-        es = embedding_similarity_scores(text, SDG_DESCS)
-        scores = ensemble_scores(zs, es, alpha=0.8)
+        es = embedding_similarity_scores(text, sdg_constants.SDG_DESCS)
+        scores = ensemble_scores(zs, es, alpha=0.0)
         
         
     else:
@@ -126,7 +127,7 @@ def classify_text(
     
     # Rank and threshold
     idx = np.argsort(scores)[::-1]
-    ranked = [(SDG_NAMES[i], float(scores[i])) for i in idx]
+    ranked = [(sdg_constants.SDG_NAMES[i], float(scores[i])) for i in idx]
     
     # Filter by threshold
     selected = [(name, sc) for (name, sc) in ranked if sc >= threshold]
@@ -153,7 +154,7 @@ def main(project_description: str, project_name: str = None, project_url: str = 
     Returns:
         Dictionary with predictions and metadata
     """
-    result = classify_text(project_description, threshold=0.4, use_ensemble=True, verbose=True)
+    result = classify_text(project_description, threshold=0.0, use_ensemble=True, verbose=True)
     
     # Format predictions
     predictions = {
@@ -172,10 +173,28 @@ def main(project_description: str, project_name: str = None, project_url: str = 
 
 # Example usage
 if __name__ == "__main__":
-    sample_text = """
-    Our project aims to provide clean water access to rural communities through 
-    innovative filtration technology. We focus on sustainable solutions that empower 
-    local communities and improve public health outcomes.
-    """
-    result = main(sample_text, project_name="Clean Water Initiative")
+#     sample_text = """
+#    The Ushahidi Platform is an integrated data crowdsourcing and mapping tool that allows people to rapidly collect, manage and analyze crowdsourced information from their communities. Empowering communities to thrive as a result of accessible data and technology.
+#     """
+#     result = main(sample_text, project_name="Ushahidi")
+#     print(result)
+    project_data = [{'name': 'Go.Data',
+  'project_description': 'Go.Data is an open-source platform for outbreak response and contact tracing developed by WHO in collaboration with GOARN partners. It streamlines all aspects of outbreak response and is highly versatile with customizable configurations for different scenarios.'},
+ {'name': 'Harmony',
+  'project_description': 'Harmony is an open-source, end-to end data integration and advanced analytics platform for integrating, harmonizing, analyzing, and visualizing any number of structured data sources from different sectors (e.g. health, education, agriculture, sustainable development, climate change adaptation), ranging from routinely collected individual level data to operational research and survey data.'},
+ {'name': 'HOPE',
+  'project_description': 'HOPE is UNICEFƒ??s humanitarian cash transfer management information system. HOPE allows to register and target beneficaries, track approval of payment list send them to payment providers, process reconciliation and payment verification and facilitate grievances and feedbacks.'},
+ {'name': 'HOT Tasking Manager',
+  'project_description': 'The HOT Tasking Manager is a specialized platform developed by the Humanitarian OpenStreetMap Team (HOT) for coordinating volunteers and facilitating collaborative mapping efforts to support disaster response, humanitarian aid, and development projects worldwide.'},
+ {'name': 'QField',
+  'project_description': 'Survey and digitize data in the field with seamless synchronization.QField focuses on efficiently getting GIS fieldwork done and exchanging data between the field and the office in a comfortable and user-friendly way.'},
+ {'name': 'Rural Environmental Registry Registration Module',
+  'project_description': 'The Rural Environmental Registry (RER) is a solution for managing declared geospatial environmental information on rural properties to serve as a database for control, monitoring, environmental and economic planning.'},
+ {'name': 'The Ushahidi Platform',
+  'project_description': 'The Ushahidi Platform is an integrated data crowdsourcing and mapping tool that allows people to rapidly collect, manage and analyze crowdsourced information from their communities. Empowering communities to thrive as a result of accessible data and technology.'},
+ {'name': 'UPYOG',
+  'project_description': 'The Urban Platform for DeliverY of Online Governance (UPYOG) is a set of Open APIs, services, and reference implementations, setup as a public good, to allow government entities, businesses, startups, and civil society to use a unique digital Infrastructure and build solutions at a large scale. Developed under the National Urban Digital Mission, MoHUA to facilitate the digital delivery of G2G, G2C, G2B services focussing on citizen centricity, UPYOG is available with customizable 14 reference modules.'}]
   
+    for item in project_data:
+        res = main(item['project_description'], project_name=item['name'])
+        print(res)

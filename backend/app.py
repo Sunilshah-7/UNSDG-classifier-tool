@@ -8,6 +8,8 @@ from datetime import datetime, UTC
 from embedding_description import main as classify_description
 from embedding_url import main as classify_url
 from aurora_api import main as aurora_classify
+from dotenv import load_dotenv
+load_dotenv()
 
 
 app = Flask(__name__)
@@ -65,7 +67,7 @@ def classify_aurora():
     return jsonify({
         "projectName": aurora_result.get("project_name"),
         "projectUrl": aurora_result.get("project_url"),
-        "predictions": filtered_predictions
+        "predictions": preds
     }), 200
 
 
@@ -104,11 +106,11 @@ def classify_st_description():
         {"sdg": name, "prediction": score}
         for name, score in st_desc_result.get("sdg_predictions", {}).items()
     ]
-    filtered_predictions = [p for p in preds if p.get("prediction", 0) > 0.4]
+    
     return jsonify({
             "projectName": projectName,
             "projectUrl": projectUrl,
-            "predictions": filtered_predictions,
+            "predictions": preds,
         }), 200
 
 
@@ -155,49 +157,50 @@ def classify_st_url():
         {"sdg": name, "prediction": score}
         for name, score in st_url_result.get("sdg_predictions", {}).items()
     ]
-    filtered_predictions = [p for p in preds if p.get("prediction", 0) > 0.4]
+    print(preds)
+    
     return jsonify({
             "projectName": projectName,
             "projectUrl": projectUrl,
-            "predictions": filtered_predictions,
+            "predictions": preds,
         }), 200
 
-@app.route("/api/osdg_api", methods=["POST"])
-def osdg_external_api():
-    data = request.json
-    projectName = data.get('projectName')
-    projectUrl  = data.get('projectUrl')
-    projectDescription = data.get('projectDescription')
+# @app.route("/api/osdg_api", methods=["POST"])
+# def osdg_external_api():
+#     data = request.json
+#     projectName = data.get('projectName')
+#     projectUrl  = data.get('projectUrl')
+#     projectDescription = data.get('projectDescription')
 
-    if not projectDescription:
-        return jsonify({'error': 'Project description is required'}), 400
+#     if not projectDescription:
+#         return jsonify({'error': 'Project description is required'}), 400
 
-    # Call the external OSDG API
-    try:
-        osdg_response = requests.post(
-            "http://20.73.166.85/label_text",
-            json={
-                "text": projectDescription
-            },
-            headers={
-                "token": os.environ.get("OSDG_TOKEN")  # Ensure you have the OSDG token set in your environment variables
-            },
-            timeout=1000  # Set a timeout for the request
-        )
-        osdg_response.raise_for_status()  # Raise an error for bad status codes
-        osdg_result = osdg_response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"OSDG API request failed: {str(e)}")
-        return jsonify({
-            "error": f"Failed to connect to OSDG API: {str(e)}",
-            "message": "OSDG API classification failed"
-        }), 500
+#     # Call the external OSDG API
+#     try:
+#         osdg_response = requests.post(
+#             "http://20.73.166.85/label_text",
+#             json={
+#                 "text": projectDescription
+#             },
+#             headers={
+#                 "token": os.environ.get("OSDG_TOKEN")  # Ensure you have the OSDG token set in your environment variables
+#             },
+#             timeout=1000  # Set a timeout for the request
+#         )
+#         osdg_response.raise_for_status()  # Raise an error for bad status codes
+#         osdg_result = osdg_response.json()
+#     except requests.exceptions.RequestException as e:
+#         print(f"OSDG API request failed: {str(e)}")
+#         return jsonify({
+#             "error": f"Failed to connect to OSDG API: {str(e)}",
+#             "message": "OSDG API classification failed"
+#         }), 500
 
-    return jsonify({
-        "projectName": projectName,
-        "projectUrl": projectUrl,
-        "predictions": osdg_result
-    }), 200
+#     return jsonify({
+#         "projectName": projectName,
+#         "projectUrl": projectUrl,
+#         "predictions": osdg_result
+#     }), 200
 # @app.post("/api/upload-md")
 # def aurora_api():
 
