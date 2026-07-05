@@ -636,12 +636,6 @@ class BitbucketProvider(BaseRepositoryProvider):
             except RepositoryNotFoundError:
                 continue   # this filename doesn't exist on this branch, try next
 
-        # No README found. If the user pasted a wiki URL, try the wiki's
-        # Home page as a last resort — for some projects (like this one)
-        # the wiki, not the README, is where the actual project description
-        # lives. Note: Bitbucket is deprecating wikis (removal announced
-        # for 2026-08-20), so treat this as a graceful bonus, not a
-        # long-term dependency.
         if getattr(self, "_is_wiki_url", False):
             try:
                 return self.fetch_wiki_home()
@@ -666,8 +660,7 @@ class BitbucketProvider(BaseRepositoryProvider):
         """
         wiki_repo_slug = f"{self._repo}.wiki"
 
-        # Wikis default to "master" as their branch; there's no separate
-        # mainbranch lookup exposed for wiki repos via this API.
+        
         for filename in ("Home.md", "Home.rst", "Home.creole", "home.md"):
             try:
                 r = self._get(
@@ -732,16 +725,13 @@ def _rewrite_github_pages(url: str) -> str:
 
     owner = host[: -len(".github.io")]
     if not owner:
-        return url   # bare "github.io" with no owner subdomain — leave as-is, will fail validation
+        return url   
 
     path_parts = [p for p in parsed.path.strip("/").split("/") if p]
 
     if path_parts:
-        # Project Pages site: emapr.github.io/LT-GEE → github.com/emapr/LT-GEE
         repo = path_parts[0]
     else:
-        # Root Pages site: emapr.github.io → github.com/emapr/emapr.github.io
-        # (GitHub's own naming convention for user/org Pages repos)
         repo = host
 
     return f"https://github.com/{owner}/{repo}"
@@ -819,14 +809,14 @@ def _detect_engine(host: str) -> type[BaseRepositoryProvider] | None:
             r = requests.get(
                 probe_url,
                 headers={"User-Agent": "sdg-classifier", "Accept": "application/json"},
-                timeout=5,   # short timeout — this is a best-effort probe, not a real fetch
+                timeout=5,   
             )
             if r.status_code == 200:
                 body = r.json()
                 if isinstance(body, dict) and "version" in body:
                     return cls
         except (requests.exceptions.RequestException, ValueError):
-            continue   # ValueError covers r.json() failing on non-JSON bodies
+            continue   
 
     return None
 

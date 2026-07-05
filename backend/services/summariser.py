@@ -1,0 +1,300 @@
+"""
+services/llm_summarizer.py
+
+Uses Hugging Face's Inference Providers router (OpenAI-compatible
+/v1/chat/completions endpoint) to convert a raw README into a
+non-technical, SDG-classification-ready English summary.
+
+When to call this:
+  - After gh_cleaner has run — always pass partially-cleaned text, not raw markdown
+  - Before the MiniLM/GE-Lab classifiers — this is the preprocessing step
+  - For ANY language — the prompt instructs the model to output English regardless
+
+This is NOT a general summarizer. It is a targeted extraction prompt
+that knows about the SDG classification task downstream and extracts
+only the signals that task needs.
+"""
+
+from __future__ import annotations
+
+import re
+import requests
+
+import os
+from dotenv import load_dotenv
+
+
+load_dotenv()
+
+k = os.getenv("HF_TOKEN")
+
+
+GROQ_API_URL = "https://router.huggingface.co/v1/chat/completions"
+GROQ_MODEL   = "deepseek-ai/DeepSeek-V3.2:novita"
+
+_THINKING_CAPABLE_MODEL_PREFIXES = ("Qwen/Qwen3", "qwen/qwen3")
+
+def _supports_enable_thinking(model_id: str) -> bool:
+    return model_id.startswith(_THINKING_CAPABLE_MODEL_PREFIXES)
+
+
+# ─────────────────────────── prompt design ────────────────────────────────────
+
+SYSTEM_PROMPT = """\
+You are a development effectiveness analyst working for the Digital Public Goods Alliance (DPGA).
+Your job is to read a software repository's README and produce a concise English paragraph that \
+captures ONLY the information needed to classify the project against the 17 UN Sustainable \
+Development Goals (SDGs).
+
+A classifier model will read your output — not a human. Your output must be dense with \
+domain-relevant signals and free of technical implementation noise.
+
+EXTRACT (these signals matter for SDG classification):
+- What real-world problem does this project solve?
+- Who are the beneficiaries? (communities, patients, farmers, students, governments, etc.)
+- In which geographic or socioeconomic context does it operate? (low-income countries, \
+  rural areas, conflict zones, etc.)
+- What is the project's impact or stated goal in non-technical terms?
+- Which sectors or domains does it address? (health, education, water, energy, agriculture, \
+  governance, environment, etc.)
+- Any explicit SDG mentions, even in passing.
+
+IGNORE completely — do not let any of these appear in your output:
+- Programming languages, frameworks, libraries, databases (Python, React, PostgreSQL, etc.)
+- Installation instructions, build steps, Docker, CLI commands
+- API endpoint documentation or code examples
+- License text, contributor guidelines, changelog entries
+- Navigation links, table of contents entries, badge descriptions
+- Performance benchmarks, version numbers, dependency lists
+- GitHub Actions, CI/CD, DevOps tooling
+
+LANGUAGE RULE:
+- Always write your output in English, regardless of the language of the input README.
+- If the README is in a non-English language, translate the relevant content as you extract it.
+- If the README contains English keywords mixed into a non-English document \
+  (common for technical repos), use those English keywords to anchor your extraction.
+
+FORMAT:
+- Write exactly 4 to 6 sentences.
+- Each sentence must be no longer than 35 words.
+- Total output must be between 80 and 160 words.
+- Plain prose only — no bullet points, no headings, no markdown, no lists.
+- Do not begin with phrases like "This project", "The repository", "This README", \
+  "This tool", or "Here is". Start directly with the domain or the problem.
+- Do not include any preamble, meta-commentary, or closing remarks.
+
+EDGE CASES:
+- If the README is empty or under 20 words: write "Insufficient documentation to assess \
+  SDG relevance. Project name: [name if available]. No further classification possible."
+- If the README is entirely technical with zero domain signals: extract the project name \
+  and any organisation name, then write "No domain-level information available for SDG \
+  classification."
+- If the project explicitly mentions SDGs: include those mentions verbatim.
+"""
+
+USER_PROMPT_TEMPLATE = """\
+PROJECT NAME: {name}
+PROJECT DESCRIPTION (from repository metadata): {description}
+TOPICS/TAGS: {topics}
+
+README CONTENT:
+{readme}
+
+Write the SDG-classification paragraph now.\
+"""
+
+
+# ─────────────────────────── cleaner for LLM input ───────────────────────────
+
+def _prepare_for_llm(raw_readme: str, max_chars: int = 12_000) -> str:
+    """
+    Light pre-cleaning before sending to the LLM.
+    """
+    text = raw_readme
+
+    text = re.sub(r'```[\s\S]*?```', '', text)
+    text = re.sub(r'~~~[\s\S]*?~~~', '', text)
+
+    text = re.sub(r'!\[.*?\]\(https?://[^\)]*(?:badge|shield|travis|'
+                  r'circleci|codecov|github\.com[^\)]*(?:actions|workflow))'
+                  r'[^\)]*\)', '', text, flags=re.IGNORECASE)
+
+    text = re.sub(r'!\[([^\]]*)\]\([^\)]*\)', r'\1', text)
+    text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
+    text = re.sub(r'<[^>]+>', '', text)
+    text = re.sub(r'https?://\S+', '', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+
+    return text[:max_chars].strip()
+
+
+# ─────────────────────────── main function ────────────────────────────────────
+
+def summarize_for_sdg(
+    readme:      str,
+    name:        str = "",
+    description: str = "",
+    topics:      list[str] | None = None,
+    *,
+    api_key:     str | None = None,
+    temperature: float = 0.1,
+    timeout:     int = 30,
+) -> str:
+    """
+    Call the HF Inference Providers router to produce an SDG-classification-
+    ready summary.
+
+    On any failure, returns a best-effort fallback built from the
+    API-provided fields so the pipeline never blocks. Every failure path
+    now prints the raw response body it saw, so you can see *why* it
+    failed instead of just getting a generic "unexpected shape" message.
+    """
+    key = api_key or k
+    if not key:
+        return _fallback_summary(name, description, topics,
+                                 reason="No HF_TOKEN found in environment")
+
+    topics = topics or []
+    cleaned_readme = _prepare_for_llm(readme)
+
+    user_message = USER_PROMPT_TEMPLATE.format(
+        name        = name.strip() or "(not provided)",
+        description = description.strip() or "(not provided)",
+        topics      = ", ".join(topics) if topics else "(none)",
+        readme      = cleaned_readme or "(README is empty)",
+    )
+
+    response = None
+    data = None
+
+    try:
+        payload = {
+            "model":       GROQ_MODEL,
+            "temperature": temperature,
+            "max_tokens":  600,
+            "messages": [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user",   "content": user_message},
+            ],
+        }
+
+        if _supports_enable_thinking(GROQ_MODEL):
+            payload["chat_template_kwargs"] = {"enable_thinking": False}
+
+        response = requests.post(
+            GROQ_API_URL,
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type":  "application/json",
+            },
+            json=payload,
+            timeout=timeout,
+        )
+
+        # HF's router (like many OpenAI-compatible routers) can return
+        # HTTP 200 with an error payload instead of a 4xx/5xx status.
+        # raise_for_status() alone will NOT catch that, so we check the
+        # body for an "error" key before trusting the "choices" shape.
+        data = response.json()
+
+        if isinstance(data, dict) and "error" in data:
+            print("\n--- HF ROUTER RETURNED AN ERROR PAYLOAD (HTTP 200) ---")
+            print(f"status_code: {response.status_code}")
+            print(data)
+            print("--------------------------------------------------------\n")
+            return _fallback_summary(
+                name, description, topics,
+                reason=f"HF router error: {data['error']}",
+            )
+
+        response.raise_for_status()
+
+        choices = data.get("choices") or []
+        if not choices:
+            print("\n--- RAW API RESPONSE (no choices returned) ---")
+            print(f"status_code: {response.status_code}")
+            print(data)
+            print("------------------------------------------------\n")
+            return _fallback_summary(name, description, topics,
+                                     reason="Response had no choices")
+
+        message = choices[0]["message"]
+        summary = (message.get("content") or "").strip()
+
+        if len(summary.split()) < 10:
+            # Surface exactly what came back — e.g. if a model still
+            # leaks reasoning into a separate field, or content is empty,
+            # this tells you immediately instead of guessing.
+            print("\n--- SHORT/EMPTY CONTENT FROM MODEL ---")
+            print(f"finish_reason: {choices[0].get('finish_reason')}")
+            print(f"content: {summary!r}")
+            if "reasoning_content" in message:
+                print(f"reasoning_content (truncated): "
+                      f"{str(message['reasoning_content'])[:300]!r}")
+            print("----------------------------------------\n")
+
+        return _validate_output(summary, name, description, topics)
+
+    except requests.exceptions.Timeout:
+        return _fallback_summary(name, description, topics,
+                                 reason="HF router request timed out")
+
+    except requests.exceptions.HTTPError as e:
+        # Print the actual error body HF sent back with the bad status code
+        print("\n--- HTTP ERROR RESPONSE BODY ---")
+        print(f"status_code: {response.status_code if response is not None else 'n/a'}")
+        print(response.text[:2000] if response is not None else "(no response object)")
+        print("--------------------------------\n")
+        return _fallback_summary(name, description, topics,
+                                 reason=f"HF router HTTP error: {e}")
+
+    except requests.exceptions.RequestException as e:
+        return _fallback_summary(name, description, topics,
+                                 reason=f"HF router request error: {e}")
+
+    except (KeyError, IndexError) as e:
+        print("\n--- RAW API RESPONSE (unexpected shape) ---")
+        print(f"status_code: {response.status_code if response is not None else 'n/a'}")
+        print(data)
+        print(f"exception: {e!r}")
+        print("---------------------------------------------\n")
+        return _fallback_summary(name, description, topics,
+                                 reason="Unexpected HF router response shape")
+
+
+def _validate_output(text: str, name: str, description: str,
+                     topics: list[str]) -> str:
+    if not text or len(text.split()) < 10:
+        return _fallback_summary(name, description, topics,
+                                 reason="LLM returned too-short output")
+
+    bad_starts = ("here is", "this project", "the repository",
+                  "this readme", "this tool", "certainly", "sure,")
+    first_words = text[:40].lower()
+    if any(first_words.startswith(b) for b in bad_starts):
+        lines = text.strip().splitlines()
+        if len(lines) > 1:
+            text = " ".join(lines[1:]).strip()
+
+    words = text.split()
+    if len(words) > 200:
+        truncated = " ".join(words[:175])
+        last_period = max(truncated.rfind("."), truncated.rfind("!"),
+                          truncated.rfind("?"))
+        if last_period > len(truncated) // 2:
+            text = truncated[:last_period + 1]
+        else:
+            text = truncated
+
+    return text
+
+
+def _fallback_summary(name: str, description: str,
+                      topics: list[str] | None,
+                      reason: str = "") -> str:
+    parts = [p for p in [name, description] if p and p.strip()]
+    if topics:
+        parts.append("Topics: " + ", ".join(topics))
+    if reason:
+        parts.append(f"(LLM summarization unavailable: {reason})")
+    return " . ".join(parts) if parts else ""

@@ -54,8 +54,8 @@ model.to(device).eval()
 def predict():
     data = request.json
     text = data.get("text", "")
-    print(f"{text}\n from the predict_route")
-    
+    # print(f"{text}\n from the predict_route")
+    text = "This software provides a user-friendly website that allows the public to easily find and access government data. As a digital public good, it strengthens institutional infrastructure by increasing transparency and openness in public administration."
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
@@ -63,7 +63,7 @@ def predict():
     # cleaned_text = "Our project implements a decentralized grid management system powered by IoT sensors to optimize renewable energy distribution in remote villages. By reducing energy wastage and integrating solar-based microgrids, we are accelerating the transition to clean energy while building resilient community infrastructure."
     # Inference logic
 
-    print(text)
+
     enc = tokenizer(
         text,
         add_special_tokens=True,
@@ -95,6 +95,4 @@ def hello():
     return jsonify({'message': 'Hello, World!'})
 
 if __name__ == "__main__":
-    # In production, use gunicorn instead of app.run()
-    #app.run(host="0.0.0.0", port=9000, debug=False)
     app.run(port = 9010)
