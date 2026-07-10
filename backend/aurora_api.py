@@ -71,7 +71,7 @@ def main(text: str, project_name: str = None, project_url: str = None):
                     
                     if sdg_name and isinstance(sdg_name, str):
                         # Format score to 3 decimal places
-                        if score > 0.5:
+                        if score > 0.1:
                             sdg_predictions[sdg_name] = float(f"{float(score):.3f}")
                     else:
                         print(f"DEBUG - Warning: Could not extract SDG name from prediction {idx}")
