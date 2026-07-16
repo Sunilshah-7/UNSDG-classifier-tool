@@ -2,3 +2,4 @@ myvenv/
 .env
 __pycache__/
 *.pyc
+.summarizer_cache/

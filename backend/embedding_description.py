@@ -123,7 +123,7 @@ def classify_text(
     if use_ensemble:
         # Embedding similarity against SDG descriptions
         es = embedding_similarity_scores(text, sdg_constants.SDG_DESCS)
-        scores = ensemble_scores(zs, es, alpha=0.0)
+        scores = ensemble_scores(zs, es, alpha=0.4)
         
         
     else:
@@ -158,7 +158,7 @@ def main(project_description: str, project_name: str|None = None, project_url: s
     Returns:
         Dictionary with predictions and metadata
     """
-    result = classify_text(project_description, threshold=0.0, use_ensemble=True, verbose=True)
+    result = classify_text(project_description, threshold=0.4, use_ensemble=True, verbose=True)
     
     # Format predictions
     predictions = {

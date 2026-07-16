@@ -769,6 +769,7 @@ _DOMAIN_MAP: dict[str, type[BaseRepositoryProvider]] = {
     "forge.ird.fr":                           GitLabProvider,
     "gitlab.dune-project.org":                GitLabProvider,
     "git.wur.nl":                             GitLabProvider,
+    "gitlab.heigit.org":                      GitLabProvider,
 }
 
 SUPPORTED_HOSTS = sorted({h.removeprefix("www.") for h in _DOMAIN_MAP})
@@ -847,6 +848,7 @@ def get_provider(repo_url: object, token: str | None = None) -> BaseRepositoryPr
                             found neither GitLab nor Gitea/Forgejo
     (Other errors are raised lazily when fetch_* methods are called.)
     """
+    
     url = _sanitise_url(repo_url)           # type + format guard
     url = _rewrite_github_pages(url)        # *.github.io → github.com/owner/repo
 
@@ -867,3 +869,7 @@ def get_provider(repo_url: object, token: str | None = None) -> BaseRepositoryPr
         )
 
     return cls(url, token=token)
+
+def main ():
+    get_provider("https://gitlab.com/trapper-project/trapper")
+    

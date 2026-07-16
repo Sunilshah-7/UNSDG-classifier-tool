@@ -30,7 +30,15 @@ k = os.getenv("HF_TOKEN")
 
 
 GROQ_API_URL = "https://router.huggingface.co/v1/chat/completions"
-GROQ_MODEL   = "deepseek-ai/DeepSeek-V3.2:novita"
+GROQ_MODEL   = "meta-llama/Llama-3.1-8B-Instruct:novita"
+
+# import hashlib
+# import diskcache
+# try:
+#     _CACHE_DIR = os.path.join(os.path.dirname(__file__), "..", ".summarizer_cache")
+#     _cache = diskcache.Cache(_CACHE_DIR)
+# except ImportError:
+#     _cache = None
 
 _THINKING_CAPABLE_MODEL_PREFIXES = ("Qwen/Qwen3", "qwen/qwen3")
 
@@ -89,7 +97,7 @@ EDGE CASES:
 - If the README is entirely technical with zero domain signals: extract the project name \
   and any organisation name, then write "No domain-level information available for SDG \
   classification."
-- If the project explicitly mentions SDGs: include those mentions verbatim.
+- If the project explicitly mentions SDGs: DO NOT include those mentions verbatim.
 """
 
 USER_PROMPT_TEMPLATE = """\
@@ -102,7 +110,9 @@ README CONTENT:
 
 Write the SDG-classification paragraph now.\
 """
-
+# def _cache_key(name: str, description: str, readme: str) -> str:
+#     raw = f"{name.strip()}|{description.strip()}|{readme[:2000]}"
+#     return hashlib.sha256(raw.encode()).hexdigest()
 
 # ─────────────────────────── cleaner for LLM input ───────────────────────────
 
@@ -155,6 +165,12 @@ def summarize_for_sdg(
                                  reason="No HF_TOKEN found in environment")
 
     topics = topics or []
+    #if _cache is not None:
+    #     ck = _cache_key(name, description, readme)
+    #     cached = _cache.get(ck)
+    # if cached is not None:
+    #     print("[summarizer] cache hit — skipping API call")
+    #     return cached
     cleaned_readme = _prepare_for_llm(readme)
 
     user_message = USER_PROMPT_TEMPLATE.format(

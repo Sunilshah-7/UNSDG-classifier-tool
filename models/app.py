@@ -1,10 +1,13 @@
 import torch
 from flask import Flask, request, jsonify
 from transformers import AutoTokenizer
+from similarities import SDG_DESCS
 from classifier import SDGClassifier
 from huggingface_hub import hf_hub_download
 #from gh_cleaner import clean_github_readme as cleaner
-
+from sentence_transformers import SentenceTransformer
+import numpy as np
+from similarities import get_embedder
 app = Flask(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
@@ -90,9 +93,38 @@ def predict():
     })
 
 
+@app.route("/similarities", methods=["POST"])
+def predict_cosine():
+    data = request.json
+    text = data.get("text", "")
+    label_texts = data.get("label_texts", SDG_DESCS)
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    # Clean text using your existing utility
+    # cleaned_text = cleaner(text)
+
+    # Cosine similarity logic
+    print(f"\033[34m from app.py loades the cosine similarity scorer\033[0m")
+    emb = get_embedder()
+    v_text = emb.encode([text], normalize_embeddings=True)[0]
+    v_lbls = emb.encode(label_texts, normalize_embeddings=True)
+    sims = np.dot(v_lbls, v_text)  
+    sims = (sims - sims.min()) / (sims.max() - sims.min() + 1e-8)  # Normalize to 0..1
+
+    return jsonify({
+        "similarities": {label: round(float(sim), 4) for label, sim in zip(label_texts, sims)},
+        
+    })
+
+
+
 @app.route('/', methods=['GET'])
 def hello():
     return jsonify({'message': 'Hello, World!'})
+
+
 
 if __name__ == "__main__":
     app.run(port = 9010)

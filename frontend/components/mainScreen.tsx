@@ -44,11 +44,18 @@ const MainScreen: React.FC<{
       return;
     }
 
-    if (projectUrl.includes("github.com") === false) {
-      setUploadMsg("Please enter a valid GitHub repository URL.");
-      return;
+        let isValidRepoUrl = false;
+    try {
+      const url = new URL(projectUrl);
+      isValidRepoUrl = /^\/[^/]+\/[^/]+/.test(url.pathname);
+    } catch {
+      isValidRepoUrl = false;
     }
 
+    if (!isValidRepoUrl) {
+      setUploadMsg("Please enter a valid repository URL.");
+      return;
+    }
     const finalizedData = {
       projectName: projectName,
       projectUrl: projectUrl,
