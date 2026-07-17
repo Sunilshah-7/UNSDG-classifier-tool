@@ -73,6 +73,7 @@ def fetch_repo_text(url: str, project_description: str = "", max_issues: int = 1
     print(f"\033[31m name: {name}\033[0m\n")
     print(f"\033[32m description: {description}\033[0m\n")
     print(f"\033[89m topics: {topics}\033[0m\n")
+    print(f"\033[35m homepage: {homepage}\033[0m\n")
     print(f"\033[33m readme: {readme[:200]}...\033[0m\n")
     print(f"\033[34m {extracted_summary}\033[0m")
 
@@ -104,9 +105,9 @@ def zero_shot_scores(text: str, labels: List[str]) -> Tuple[np.ndarray, Dict]:
     """
     Now calls GE-Lab microservice.
     """
-  
+
     ge_lab_url = "http://localhost:9010/predict" 
- 
+
     
     response = requests.post(ge_lab_url, json={"text": text}, timeout=1500)
     print(response)
@@ -145,26 +146,25 @@ def zero_shot_scores(text: str, labels: List[str]) -> Tuple[np.ndarray, Dict]:
 
 
 
+COSINE_LOW  = 0.05 # e.g. 5th percentile of real observed similarities
+COSINE_HIGH = 0.5  # e.g. 95th percentile of real observed similarities
+
 def embedding_similarity_scores(text: str, label_texts: List[str]) -> np.ndarray:
-    """
-    Cosine similarity between text embedding and each label description.
-    """
     emb = get_embedder()
     v_text = emb.encode([text], normalize_embeddings=True)[0]
     v_lbls = emb.encode(label_texts, normalize_embeddings=True)
-    sims = np.dot(v_lbls, v_text)  # cosine since normalized
-    # Normalize to 0..1
-    sims = (sims - sims.min()) / (sims.max() - sims.min() + 1e-8)
+    sims = np.dot(v_lbls, v_text)
+    sims = np.clip((sims - COSINE_LOW) / (COSINE_HIGH - COSINE_LOW), 0, 1)
     return sims
 
-def ensemble_scores(zs: np.ndarray, es: np.ndarray, alpha: float = 0.5) -> np.ndarray:
+def ensemble_scores(zs: np.ndarray, es: np.ndarray, alpha: float = 0.3) -> np.ndarray:
     """
     Simple mean ensemble; tune alpha if desired.
     """
     return alpha * zs + (1 - alpha) * es
 
 # ── CHANGE 3: added project_description param, passed to fetch_repo_text ─────
-def classify_repo(url: str, threshold: float = 0.5, top_k: int = 10, use_ensemble: bool = True, proj_desc: str = ""):
+def classify_repo(url: str, threshold: float = 0.45, top_k: int = 10, use_ensemble: bool = True, proj_desc: str = ""):
     data = fetch_repo_text(url, project_description=proj_desc)
     text = data["text"][:6000]
 
@@ -203,9 +203,9 @@ def classify_repo(url: str, threshold: float = 0.5, top_k: int = 10, use_ensembl
 
 # ── CHANGE 4: main() accepts and passes project_description ──────────────────
 def main(url: str, project_description: str = ""):
-   
-    result = classify_repo(url, threshold=0.4, use_ensemble=True, proj_desc=project_description)
-   
+
+    result = classify_repo(url, threshold=0.3, use_ensemble=True, proj_desc=project_description)
+
     predictions = {
         "project_name": result["repo"],
         "project_url": url,
@@ -213,11 +213,15 @@ def main(url: str, project_description: str = ""):
             name: float(f"{score:.3f}") for (name, score) in result["predictions"]
         }
     }
-    
+
+    print(f"\033[32m {predictions} \033[0m\n")
     return predictions
 
 if __name__ == "__main__":
-    print("\033[33m GET THE REPO_ANALYSED RESULTS\033[0m")
-    url = "https://github.com/citylearn-project/CityLearn"
-    result = main(url)
-    print(result)
+    print("\033[43m GET THE REPO_ANALYSED RESULTS\033[0m")
+    #urls = ["https://github.com/torvalds/linux", "https://gitlab.com/gitlab-org/gitlab-runner", "https://codeberg.org/forgejo/forgejo"]
+    urls = ["https://github.com/firecrawl/firecrawl", "https://github.com/citylearn-project/CityLearn", "https://gitlab.com/trapper-project/trapper", "https://github.com/OpenMRS/openmrs-core", "https://github.com/opentripplanner/OpenTripPlanner ", "https://gitlab.windenergy.dtu.dk/pyconturb/pyconturb", "https://bitbucket.org/cioapps/wapor-et-look"]
+    for u in urls:
+        print(f"\033[33m {u} \033[0m")
+        res = main(u)
+        print(f"\033[32m {res} \033[0m\n")
