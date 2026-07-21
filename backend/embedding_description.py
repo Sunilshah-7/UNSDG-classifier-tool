@@ -3,18 +3,13 @@ from typing import List, Dict
 from transformers import pipeline
 from sentence_transformers import SentenceTransformer
 import numpy as np
+import sdg_constants
 from sdg_constants import SDG_LABELS, SDG_NAMES, SDG_DESCS
+import requests
+from typing import List, Dict, Tuple
 
-# --- Zero-shot and embedding models (lazy-load) ---
-_zeroshot = None
 _embedder = None
 
-def get_zeroshot():
-    """Lazy load zero-shot classification model."""
-    global _zeroshot
-    if _zeroshot is None:
-        _zeroshot = pipeline("zero-shot-classification", model="facebook/bart-large-mnli", device_map="auto")
-    return _zeroshot
 
 def get_embedder():
     """Lazy load sentence transformer model."""
@@ -30,19 +25,38 @@ def clean_text(text: str) -> str:
     text = re.sub(r"\n{2,}", "\n", text)
     return text.strip()
 
-def zero_shot_scores(text: str, labels: List[str]) -> tuple[np.ndarray, Dict]:
+
+
+
+def zero_shot_scores(text: str, labels: List[str]) -> Tuple[np.ndarray, Dict]:
     """
-    Returns probabilities for each label using NLI zero-shot (multi-label).
-    Returns (scores_array, detailed_info_dict)
+    Now calls GE-Lab microservice.
     """
-    clf = get_zeroshot()
-    out = clf(text, labels, multi_label=True)
+  
+    ge_lab_url = "http://localhost:9010/predict" 
+    #print(text)
+    print("\033[33mTHIS IS THE RESPONSE OF THE REQUEST THAT IS SENT ON DESCRIPTION URL\033[0m")
+
+    response = requests.post(ge_lab_url, json={"text": text}, timeout=1500)
+    print(response)
+    stat = response.raise_for_status()
+    print(f"STATUS CODE : {stat}\n")
+    
+    scores = response.json()["scores"] 
+    
+
+    ordered_scores = [scores[label] for label in sdg_constants.SDG_NAMES]
+    
+
     detailed_info = {
-        "labels": out["labels"],
-        "scores": out["scores"],
-        "sequence": text[:500] + "..." if len(text) > 500 else text
+        "labels": labels,
+        "scores": scores,
+        "sequence": text[:500]
     }
-    return np.array(out["scores"], dtype=float), detailed_info
+    print(f"DETAILED: {detailed_info}" )
+    
+    
+    return np.array(ordered_scores, dtype=float), detailed_info
 
 def embedding_similarity_scores(text: str, label_texts: List[str]) -> np.ndarray:
     """
@@ -57,10 +71,10 @@ def embedding_similarity_scores(text: str, label_texts: List[str]) -> np.ndarray
     sims = (sims - sims.min()) / (sims.max() - sims.min() + 1e-8)
     return sims
 
-def ensemble_scores(zs: np.ndarray, es: np.ndarray, alpha: float = 0.8) -> np.ndarray:
+def ensemble_scores(zs: np.ndarray, es: np.ndarray, alpha: float = 0.0) -> np.ndarray:
     """
     Combine zero-shot and embedding scores.
-    alpha: weight for zero-shot (default 0.8 means 80% zero-shot, 20% embedding)
+    alpha: weight for zero-shot (default 0.0 means 0% zero-shot, 100% embedding)
     """
     return alpha * zs + (1 - alpha) * es
 
@@ -90,7 +104,7 @@ def classify_text(
         raise ValueError("Input text is empty. Please provide a project description.")
     
     # Cap text length for processing speed
-    text = text[:6000]
+    text = text[:6000].lower()
     
     # Zero-shot classification
     zs, zs_details = zero_shot_scores(text, SDG_NAMES)
@@ -101,24 +115,15 @@ def classify_text(
         label_score_pairs = list(zip(zs_details["labels"], zs_details["scores"]))
         label_score_pairs.sort(key=lambda x: x[1], reverse=True)
         
-        for label, score in label_score_pairs:
-            
-            if score > 0.9:
-                confidence = "HIGH"
-            elif score > 0.7:
-                confidence = "MEDIUM"
-            elif score > 0.5:
-                confidence = "LOW"
-            else:
-                confidence = "VERY LOW"
+        
          
         
  
     
     if use_ensemble:
         # Embedding similarity against SDG descriptions
-        es = embedding_similarity_scores(text, SDG_DESCS)
-        scores = ensemble_scores(zs, es, alpha=0.8)
+        es = embedding_similarity_scores(text, sdg_constants.SDG_DESCS)
+        scores = ensemble_scores(zs, es, alpha=0.0)
         
         
     else:
@@ -126,7 +131,7 @@ def classify_text(
     
     # Rank and threshold
     idx = np.argsort(scores)[::-1]
-    ranked = [(SDG_NAMES[i], float(scores[i])) for i in idx]
+    ranked = [(sdg_constants.SDG_NAMES[i], float(scores[i])) for i in idx]
     
     # Filter by threshold
     selected = [(name, sc) for (name, sc) in ranked if sc >= threshold]
@@ -141,7 +146,7 @@ def classify_text(
         "text_length": len(text)
     }
 
-def main(project_description: str, project_name: str = None, project_url: str = None) -> Dict:
+def main(project_description: str, project_name: str|None = None, project_url: str | None = None) -> Dict:
     """
     Main entry point for text classification.
     
@@ -153,7 +158,7 @@ def main(project_description: str, project_name: str = None, project_url: str = 
     Returns:
         Dictionary with predictions and metadata
     """
-    result = classify_text(project_description, threshold=0.4, use_ensemble=True, verbose=True)
+    result = classify_text(project_description, threshold=0.0, use_ensemble=True, verbose=True)
     
     # Format predictions
     predictions = {
@@ -172,10 +177,11 @@ def main(project_description: str, project_name: str = None, project_url: str = 
 
 # Example usage
 if __name__ == "__main__":
-    sample_text = """
-    Our project aims to provide clean water access to rural communities through 
-    innovative filtration technology. We focus on sustainable solutions that empower 
-    local communities and improve public health outcomes.
-    """
-    result = main(sample_text, project_name="Clean Water Initiative")
-  
+ 
+   print("\033[95m GET THE REPO_ANALYSED RESULTS\033[0m")
+
+
+
+    
+
+    

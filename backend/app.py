@@ -162,78 +162,7 @@ def classify_st_url():
             "predictions": filtered_predictions,
         }), 200
 
-@app.route("/api/osdg_api", methods=["POST"])
-def osdg_external_api():
-    data = request.json
-    projectName = data.get('projectName')
-    projectUrl  = data.get('projectUrl')
-    projectDescription = data.get('projectDescription')
 
-    if not projectDescription:
-        return jsonify({'error': 'Project description is required'}), 400
-
-    # Call the external OSDG API
-    try:
-        osdg_response = requests.post(
-            "http://20.73.166.85/label_text",
-            json={
-                "text": projectDescription
-            },
-            headers={
-                "token": os.environ.get("OSDG_TOKEN")  # Ensure you have the OSDG token set in your environment variables
-            },
-            timeout=1000  # Set a timeout for the request
-        )
-        osdg_response.raise_for_status()  # Raise an error for bad status codes
-        osdg_result = osdg_response.json()
-    except requests.exceptions.RequestException as e:
-        print(f"OSDG API request failed: {str(e)}")
-        return jsonify({
-            "error": f"Failed to connect to OSDG API: {str(e)}",
-            "message": "OSDG API classification failed"
-        }), 500
-
-    return jsonify({
-        "projectName": projectName,
-        "projectUrl": projectUrl,
-        "predictions": osdg_result
-    }), 200
-# @app.post("/api/upload-md")
-# def aurora_api():
-
-#     project_name = request.form.get("project_name", "").strip()
-#     project_url = request.form.get("project_url", "").strip()
-
-#     if not project_name:
-#         return jsonify({"error": "Project name is required"}), 400
-#     if not project_url:
-#         return jsonify({"error": "Project URL is required"}), 400
-
-
-#     if "file" not in request.files:
-#         return jsonify({"error":"No file part named 'file' in form-data."}), 400
-#     f = request.files["file"]
-
-#     if f.filename == "":
-#         return jsonify({ "error": "Empty filename."}), 400
-#     if not allowed_ext(f.filename):
-#         return jsonify({"error" : "Only .md files are allowed."}), 400
-
-
-#     filename = secure_filename(f.filename)
-
-#     text = f.read().decode("utf-8", errors="replace")
-
-#     result = aurora_main(text)
-
-#     return jsonify({
-#         "project_name": project_name,
-#         "project_url": project_url,
-#         "filename": filename,
-#         "size_bytes": len(text.encode("utf-8")),
-#         "content_preview": text[:2000],
-#         "predictions": result.get("predictions", "")
-#     }), 200
 
 if __name__ == '__main__':
     app.run(debug=True)

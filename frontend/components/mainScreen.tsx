@@ -97,6 +97,8 @@ const MainScreen: React.FC<{
     }
   };
 
+  const MAX_CHARS = 6000;
+
   return (
     <div>
       <div className="container mx-auto px-12 py-12">
@@ -154,12 +156,12 @@ const MainScreen: React.FC<{
               />
             </div>
 
-            <div>
+           <div>
               <label
                 htmlFor="projectUrl"
                 className="block text-sm font-semibold text-gray-700 mb-2"
               >
-                Project GitHub URL
+                Project Repository URL
                 <span className="text-red-500 ml-1">*</span>
               </label>
               <input
@@ -167,10 +169,13 @@ const MainScreen: React.FC<{
                 type="url"
                 value={projectUrl}
                 onChange={(e) => setProjectUrl(e.target.value)}
-                placeholder="https://github.com/username/repo"
+                placeholder="https://github.com/org/repo  ·  gitlab.com  ·  codeberg.org"
                 required
-                className="w-full bg-white px-6 py-4 rounded-2xl border border-gray-200 text-gray-700 placeholder-gray-400 focus:outline-none  focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                className="w-full bg-white px-6 py-4 rounded-2xl border border-gray-200 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
               />
+              <p className="mt-1.5 text-xs text-gray-400">
+                Supports GitHub, GitLab, and Codeberg repositories
+              </p>
             </div>
 
             {/* Project Description */}
@@ -190,6 +195,7 @@ const MainScreen: React.FC<{
                 required
                 rows={12}
                 className="w-full bg-white px-6 py-4 rounded-2xl border border-gray-200 text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
+                maxLength={MAX_CHARS}
               />
             </div>
 
