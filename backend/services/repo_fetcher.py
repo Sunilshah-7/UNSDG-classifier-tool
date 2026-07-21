@@ -870,6 +870,9 @@ def get_provider(repo_url: object, token: str | None = None) -> BaseRepositoryPr
 
     return cls(url, token=token)
 
-def main ():
+def main():
     get_provider("https://gitlab.com/trapper-project/trapper")
-    
+
+
+if __name__ == "__main__":
+    main()
