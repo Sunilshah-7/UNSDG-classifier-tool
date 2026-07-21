@@ -2,7 +2,6 @@ import os
 import requests
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-#from embedding_description import main as classify_description
 from embedding_url import main as classify_url
 from aurora_api import main as aurora_classify
 
@@ -70,48 +69,6 @@ def classify_aurora():
         "projectUrl":  aurora_result.get("project_url"),
         "predictions": filtered,
     }), 200
-
-
-# ---------------------------------------------------------------------------
-# ST Description
-# ---------------------------------------------------------------------------
-
-# @app.route('/api/classify_st_description', methods=['POST'])
-# def classify_st_description():
-#     data               = request.json
-#     projectName        = data.get('projectName')
-#     projectUrl         = data.get('projectUrl')
-#     projectDescription = data.get('projectDescription')
-
-#     if not projectDescription:
-#         return jsonify({'error': 'Project description is required'}), 400
-
-#     print("\n===== RUNNING SENTENCE TRANSFORMER DESCRIPTION MODEL =====")
-#     try:
-#         st_desc_result = classify_description(
-#             project_description = projectDescription,
-#             project_name        = projectName,
-#             project_url         = projectUrl,
-#         )
-#         print("ST Description model completed successfully")
-#     except Exception as e:
-#         print(f"ST Description model failed: {e}")
-#         return jsonify({
-#             "error":   str(e),
-#             "message": "Sentence Transformer Description model classification failed",
-#         }), 500
-
-#     preds = [
-#         {"sdg": name, "prediction": score}
-#         for name, score in st_desc_result.get("sdg_predictions", {}).items()
-#     ]
-#     filtered = [p for p in preds if p.get("prediction", 0) > 0.4]
-
-#     return jsonify({
-#         "projectName": projectName,
-#         "projectUrl":  projectUrl,
-#         "predictions": filtered,
-#     }), 200
 
 
 # ---------------------------------------------------------------------------
