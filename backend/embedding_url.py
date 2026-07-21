@@ -70,14 +70,6 @@ def fetch_repo_text(url: str, project_description: str = "", max_issues: int = 1
         description=description,
         topics=topics
     )
-    print(f"\033[31m name: {name}\033[0m\n")
-    print(f"\033[32m description: {description}\033[0m\n")
-    print(f"\033[89m topics: {topics}\033[0m\n")
-    print(f"\033[35m homepage: {homepage}\033[0m\n")
-    print(f"\033[33m readme: {readme[:200]}...\033[0m\n")
-    print(f"\033[34m {extracted_summary}\033[0m")
-
-
     return {
         "owner": provider._owner,
         "repo":  provider._repo,
@@ -110,11 +102,8 @@ def zero_shot_scores(text: str, labels: List[str]) -> Tuple[np.ndarray, Dict]:
 
     
     response = requests.post(ge_lab_url, json={"text": text}, timeout=1500)
-    print(response)
-    stat = response.raise_for_status()
-    print(f"STATUS CODE for the /predict route: {stat}\n")
-    
-    
+    response.raise_for_status()
+
     # GET SCORE FROM THE GE-LAB MODEL
     payload = response.json()
 
@@ -172,8 +161,6 @@ def classify_repo(url: str, threshold: float = 0.5, top_k: int = 10, use_ensembl
         raise ValueError("No text extracted from this repository. Add README or description.")
 
     zs, zs_details = zero_shot_scores(text, sdg_constants.SDG_NAMES)
-    print(type(zs))
-
 
     label_score_pairs = list(zip(zs_details["labels"], zs_details["scores"]))
     label_score_pairs.sort(key=lambda x: x[1], reverse=True)
@@ -182,10 +169,8 @@ def classify_repo(url: str, threshold: float = 0.5, top_k: int = 10, use_ensembl
     if use_ensemble:
         es = embedding_similarity_scores(text, sdg_constants.SDG_DESCS)
         scores = ensemble_scores(zs, es, alpha=0.3)
-        print(f"\033[34m yes it worked\033[0m")
     else:
         scores = zs
-        print(f"\033[34m nayyyyy \033[0m")
 
     idx = np.argsort(scores)[::-1]
     ranked = [(sdg_constants.SDG_NAMES[i], float(scores[i])) for i in idx]
@@ -214,7 +199,6 @@ def main(url: str, project_description: str = ""):
         }
     }
 
-    print(f"\033[32m {predictions} \033[0m\n")
     return predictions
 
 if __name__ == "__main__":

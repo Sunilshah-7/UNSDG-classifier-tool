@@ -40,7 +40,6 @@ print("Model and tokenizer loaded successfully.")
 # ── Global Load (Happens once at server startup) ──────────────────────────────
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-print(SDG_LABELS)
 model = SDGClassifier(
     model_path=BASE_MODEL,
     pooler_dropout=0.26,
@@ -59,9 +58,6 @@ model.to(device).eval()
 def predict():
     data = request.json
     text = data.get("text", "")
-    print(f"\033[34m {text[:100]}\033[0m")
-    # print(f"{text}\n from the predict_route")
-    # text = "This software provides a user-friendly website that allows the public to easily find and access government data. As a digital public good, it strengthens institutional infrastructure by increasing transparency and openness in public administration."
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
@@ -94,7 +90,6 @@ def predict():
         "scores": {label: round(float(prob), 4) for label, prob in zip(SDG_LABELS, probs)},
         "predictions": [label for label, prob in zip(SDG_LABELS, probs) if prob > THRESHOLD]
     })
-print(f"\033[34m from app.py loades the classifier\033[0m")
 
 
 @app.route("/similarities", methods=["POST"])
@@ -109,8 +104,6 @@ def predict_cosine():
     # Clean text using your existing utility
     # cleaned_text = cleaner(text)
 
-    # Cosine similarity logic
-    print(f"\033[34m from app.py loades the cosine similarity scorer\033[0m")
     emb = get_embedder()
     v_text = emb.encode([text], normalize_embeddings=True)[0]
     v_lbls = emb.encode(label_texts, normalize_embeddings=True)

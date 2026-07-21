@@ -2,7 +2,6 @@ import requests
 import json
 from sdg_constants import SDG_LABELS_DICT as SDG_LABELS
 
-print("\033[35m backend/aurora_api.py loaded\033[0m\n")
 def main(text: str, project_name: str = "", project_url: str = ""):
     """
     Classify text using Aurora SDG API and format output to match embedding models.
@@ -23,7 +22,6 @@ def main(text: str, project_name: str = "", project_url: str = ""):
         # response.raise_for_status()
         
         raw_result = response.json()
-        print(raw_result)
         # Transform Aurora API response to match embedding model format
         # Aurora API can return different structures, handle both cases
         
