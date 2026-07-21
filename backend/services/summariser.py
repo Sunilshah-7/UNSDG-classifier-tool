@@ -55,7 +55,7 @@ captures ONLY the information needed to classify the project against the 17 UN S
 Development Goals (SDGs).
 
 A classifier model will read your output — not a human. Your output must be dense with \
-domain-relevant signals and free of technical implementation noise.SMELL FOR SIGNALS VERY ACCURATELY DO NOT OUTPUT GIBERISHH
+domain-relevant signals and free of technical implementation noise. SMELL FOR SIGNALS VERY ACCURATELY DO NOT OUTPUT GIBERISH
 
 EXTRACT (these signals matter for SDG classification):
 - What real-world problem does this project solve?
