@@ -96,7 +96,7 @@ _embedder = None
 def get_embedder():
     global _embedder
     if _embedder is None:
-        _embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+        _embedder = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
     return _embedder
 
 
@@ -146,8 +146,8 @@ def zero_shot_scores(text: str, labels: List[str]) -> Tuple[np.ndarray, Dict]:
 
 
 
-COSINE_LOW  = 0.05 # e.g. 5th percentile of real observed similarities
-COSINE_HIGH = 0.5  # e.g. 95th percentile of real observed similarities
+COSINE_LOW  = 0.27 # e.g. 5th percentile of real observed similarities
+COSINE_HIGH = 0.34  # e.g. 95th percentile of real observed similarities
 
 def embedding_similarity_scores(text: str, label_texts: List[str]) -> np.ndarray:
     emb = get_embedder()
@@ -164,7 +164,7 @@ def ensemble_scores(zs: np.ndarray, es: np.ndarray, alpha: float = 0.3) -> np.nd
     return alpha * zs + (1 - alpha) * es
 
 # ── CHANGE 3: added project_description param, passed to fetch_repo_text ─────
-def classify_repo(url: str, threshold: float = 0.45, top_k: int = 10, use_ensemble: bool = True, proj_desc: str = ""):
+def classify_repo(url: str, threshold: float = 0.5, top_k: int = 10, use_ensemble: bool = True, proj_desc: str = ""):
     data = fetch_repo_text(url, project_description=proj_desc)
     text = data["text"][:6000]
 
@@ -192,7 +192,7 @@ def classify_repo(url: str, threshold: float = 0.45, top_k: int = 10, use_ensemb
 
     selected = [(name, sc) for (name, sc) in ranked if sc >= threshold]
     if not selected:
-        selected = ranked[:max(1, min(top_k, 10))]
+        selected = ranked[:max(1, min(top_k, 3))]
 
     return {
         "repo":        f"{data['owner']}/{data['repo']}",  
@@ -204,7 +204,7 @@ def classify_repo(url: str, threshold: float = 0.45, top_k: int = 10, use_ensemb
 # ── CHANGE 4: main() accepts and passes project_description ──────────────────
 def main(url: str, project_description: str = ""):
 
-    result = classify_repo(url, threshold=0.3, use_ensemble=True, proj_desc=project_description)
+    result = classify_repo(url, threshold=0.4, use_ensemble=True, proj_desc=project_description)
 
     predictions = {
         "project_name": result["repo"],

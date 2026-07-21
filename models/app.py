@@ -10,6 +10,7 @@ import numpy as np
 from similarities import get_embedder
 app = Flask(__name__)
 
+print("Loading model and tokenizer...")
 # ── Constants ─────────────────────────────────────────────────────────────────
 BASE_MODEL   = "studio-ousia/luke-large-lite"
 NUM_CLASSES  = 17
@@ -35,6 +36,7 @@ SDG_LABELS = [
     'SDG 17: Strengthen the means of implementation and revitalize the Global Partnership for Sustainable Development'
 ]
 
+print("Model and tokenizer loaded successfully.")
 # ── Global Load (Happens once at server startup) ──────────────────────────────
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
@@ -57,8 +59,9 @@ model.to(device).eval()
 def predict():
     data = request.json
     text = data.get("text", "")
+    print(f"\033[34m {text[:100]}\033[0m")
     # print(f"{text}\n from the predict_route")
-    text = "This software provides a user-friendly website that allows the public to easily find and access government data. As a digital public good, it strengthens institutional infrastructure by increasing transparency and openness in public administration."
+    # text = "This software provides a user-friendly website that allows the public to easily find and access government data. As a digital public good, it strengthens institutional infrastructure by increasing transparency and openness in public administration."
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
@@ -91,6 +94,7 @@ def predict():
         "scores": {label: round(float(prob), 4) for label, prob in zip(SDG_LABELS, probs)},
         "predictions": [label for label, prob in zip(SDG_LABELS, probs) if prob > THRESHOLD]
     })
+print(f"\033[34m from app.py loades the classifier\033[0m")
 
 
 @app.route("/similarities", methods=["POST"])

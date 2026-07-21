@@ -1,9 +1,9 @@
 """
 services/llm_summarizer.py
 
-Uses Hugging Face's Inference Providers router (OpenAI-compatible
-/v1/chat/completions endpoint) to convert a raw README into a
-non-technical, SDG-classification-ready English summary.
+Uses Groq's OpenAI-compatible /v1/chat/completions endpoint to convert
+a raw README into a non-technical, SDG-classification-ready English
+summary.
 
 When to call this:
   - After gh_cleaner has run — always pass partially-cleaned text, not raw markdown
@@ -26,11 +26,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-k = os.getenv("HF_TOKEN")
+k = os.getenv("GROQ_API_KEY")
 
 
-GROQ_API_URL = "https://router.huggingface.co/v1/chat/completions"
-GROQ_MODEL   = "meta-llama/Llama-3.1-8B-Instruct:novita"
+GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_MODEL   = "llama-3.1-8b-instant"
 
 # import hashlib
 # import diskcache
@@ -55,7 +55,7 @@ captures ONLY the information needed to classify the project against the 17 UN S
 Development Goals (SDGs).
 
 A classifier model will read your output — not a human. Your output must be dense with \
-domain-relevant signals and free of technical implementation noise.
+domain-relevant signals and free of technical implementation noise.SMELL FOR SIGNALS VERY ACCURATELY DO NOT OUTPUT GIBERISHH
 
 EXTRACT (these signals matter for SDG classification):
 - What real-world problem does this project solve?
@@ -65,7 +65,7 @@ EXTRACT (these signals matter for SDG classification):
 - What is the project's impact or stated goal in non-technical terms?
 - Which sectors or domains does it address? (health, education, water, energy, agriculture, \
   governance, environment, etc.)
-- Any explicit SDG mentions, even in passing.
+- Any **explicit SDG mentions**, **SHOULD NOT BE** included verbatim, but can be used to infer the above signals.
 
 IGNORE completely — do not let any of these appear in your output:
 - Programming languages, frameworks, libraries, databases (Python, React, PostgreSQL, etc.)
@@ -91,13 +91,31 @@ FORMAT:
   "This tool", or "Here is". Start directly with the domain or the problem.
 - Do not include any preamble, meta-commentary, or closing remarks.
 
+CRITICAL — DO NOT SPECULATE SECTOR RELEVANCE:
+General-purpose technical infrastructure (databases, caches, message brokers,
+programming frameworks, build tools, code formatters, container orchestration,
+web servers) has NO domain-specific relevance, even though marketing material
+often claims use across "many industries including healthcare, education,
+finance." Naming industries a general tool COULD theoretically serve is NOT
+a real domain signal — do not extract or repeat such claims. If the README's
+own domain claim amounts to "used across many sectors" with no SPECIFIC
+population, problem, or context named, treat this as having NO domain signal.
+
+NEVER name or reference specific SDG numbers, SDG names, or the phrase
+"Sustainable Development Goals" anywhere in your output, under any
+circumstance, even to say a project "contributes to" or "achieves" them.
+
 EDGE CASES:
-- If the README is empty or under 20 words: write "Insufficient documentation to assess \
-  SDG relevance. Project name: [name if available]. No further classification possible."
-- If the README is entirely technical with zero domain signals: extract the project name \
-  and any organisation name, then write "No domain-level information available for SDG \
-  classification."
-- If the project explicitly mentions SDGs: DO NOT include those mentions verbatim.
+- If the README is empty or under 20 words: write "Insufficient documentation
+  to assess SDG relevance. Project name: [name if available]."
+- If the README, project name, description, and topics do not contain enough
+  information to determine relevance to any UN Sustainable Development Goal
+  — including generic technical tools with only speculative multi-sector
+  claims — respond with EXACTLY this text and nothing else:
+
+NO_SDG_SIGNAL
+
+Do not include the project name, description, or any other text in this case.
 """
 
 USER_PROMPT_TEMPLATE = """\
@@ -151,8 +169,7 @@ def summarize_for_sdg(
     timeout:     int = 30,
 ) -> str:
     """
-    Call the HF Inference Providers router to produce an SDG-classification-
-    ready summary.
+    Call the Groq API to produce an SDG-classification-ready summary.
 
     On any failure, returns a best-effort fallback built from the
     API-provided fields so the pipeline never blocks. Every failure path
@@ -162,7 +179,7 @@ def summarize_for_sdg(
     key = api_key or k
     if not key:
         return _fallback_summary(name, description, topics,
-                                 reason="No HF_TOKEN found in environment")
+                                 reason="No GROQ_API_KEY found in environment")
 
     topics = topics or []
     #if _cache is not None:
@@ -207,20 +224,20 @@ def summarize_for_sdg(
             timeout=timeout,
         )
 
-        # HF's router (like many OpenAI-compatible routers) can return
-        # HTTP 200 with an error payload instead of a 4xx/5xx status.
-        # raise_for_status() alone will NOT catch that, so we check the
-        # body for an "error" key before trusting the "choices" shape.
+        # Some OpenAI-compatible routers can return HTTP 200 with an
+        # error payload instead of a 4xx/5xx status. raise_for_status()
+        # alone will NOT catch that, so we check the body for an "error"
+        # key before trusting the "choices" shape.
         data = response.json()
 
         if isinstance(data, dict) and "error" in data:
-            print("\n--- HF ROUTER RETURNED AN ERROR PAYLOAD (HTTP 200) ---")
+            print("\n--- GROQ API RETURNED AN ERROR PAYLOAD (HTTP 200) ---")
             print(f"status_code: {response.status_code}")
             print(data)
             print("--------------------------------------------------------\n")
             return _fallback_summary(
                 name, description, topics,
-                reason=f"HF router error: {data['error']}",
+                reason=f"Groq API error: {data['error']}",
             )
 
         response.raise_for_status()
@@ -253,20 +270,20 @@ def summarize_for_sdg(
 
     except requests.exceptions.Timeout:
         return _fallback_summary(name, description, topics,
-                                 reason="HF router request timed out")
+                                 reason="Groq API request timed out")
 
     except requests.exceptions.HTTPError as e:
-        # Print the actual error body HF sent back with the bad status code
+        # Print the actual error body Groq sent back with the bad status code
         print("\n--- HTTP ERROR RESPONSE BODY ---")
         print(f"status_code: {response.status_code if response is not None else 'n/a'}")
         print(response.text[:2000] if response is not None else "(no response object)")
         print("--------------------------------\n")
         return _fallback_summary(name, description, topics,
-                                 reason=f"HF router HTTP error: {e}")
+                                 reason=f"Groq API HTTP error: {e}")
 
     except requests.exceptions.RequestException as e:
         return _fallback_summary(name, description, topics,
-                                 reason=f"HF router request error: {e}")
+                                 reason=f"Groq API request error: {e}")
 
     except (KeyError, IndexError) as e:
         print("\n--- RAW API RESPONSE (unexpected shape) ---")
@@ -275,7 +292,7 @@ def summarize_for_sdg(
         print(f"exception: {e!r}")
         print("---------------------------------------------\n")
         return _fallback_summary(name, description, topics,
-                                 reason="Unexpected HF router response shape")
+                                 reason="Unexpected Groq API response shape")
 
 
 def _validate_output(text: str, name: str, description: str,

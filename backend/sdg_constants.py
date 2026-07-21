@@ -74,11 +74,12 @@ SDG_DESCS = ["""SDG 1 : extreme poverty income below dollar threshold cash trans
     small medium enterprises entrepreneurship financial inclusion 
     banking credit microfinance tourism sustainable business""",
 
-    """SDG 9 : infrastructure roads bridges ports railways broadband internet 
-    connectivity ICT access rural urban industrialization manufacturing 
-    value added industry research development innovation patents 
-    technology transfer mobile network 4G 5G fintech 
-    resilient infrastructure disaster proof construction""",
+    """SDG 9 : physical infrastructure construction roads bridges ports railways
+    rural electrification grid extension industrial manufacturing capacity
+    factory production value-added industry small-scale industrial enterprise
+    disaster-resilient building codes seismic retrofitting
+    technology transfer to developing countries patent licensing for medicines
+    last-mile rural connectivity underserved regions digital divide bridging""",
 
     """SDG 10 :income inequality gini coefficient wealth distribution top bottom 
     decile palma ratio social mobility discrimination race ethnicity 
@@ -116,12 +117,12 @@ SDG_DESCS = ["""SDG 1 : extreme poverty income below dollar threshold cash trans
     invasive species mountain ecosystem dryland 
     land tenure soil carbon sequestration reforestation""",
 
-    """SDG 16 : peace conflict violence armed groups rule of law justice 
-    access to legal aid courts accountable institutions 
-    corruption bribery transparency freedom of information 
-    press freedom civil society participation human rights 
-    birth registration identity documents stateless persons 
-    illicit financial flows money laundering tax evasion""",
+    """SDG 16: armed conflict violence against civilians war crimes
+   judicial system courts of law legal aid for citizens
+   government corruption bribery of public officials
+   press freedom journalist safety human rights violations
+   birth registration civil identity documents stateless refugees
+   money laundering illicit financial flows tax evasion by corporations""",
 
     """SDG 17 : global partnership development finance ODA official aid 
     debt relief developing countries technology transfer capacity building 

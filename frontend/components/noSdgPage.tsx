@@ -9,7 +9,7 @@ const NoSdgPage: React.FC = () => {
         </h1>
         <p className="text-gray-600 text-lg">
           We couldn’t find SDG matches above the relevance threshold for the
-          provided repository/description.
+          provided repository/description. Try to make the description more 
         </p>
       </div>
     </div>
