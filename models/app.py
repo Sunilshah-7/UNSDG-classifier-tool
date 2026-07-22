@@ -1,12 +1,16 @@
 import torch
 from flask import Flask, request, jsonify
 from transformers import AutoTokenizer
+from similarities import SDG_DESCS
 from classifier import SDGClassifier
 from huggingface_hub import hf_hub_download
 #from gh_cleaner import clean_github_readme as cleaner
-
+from sentence_transformers import SentenceTransformer
+import numpy as np
+from similarities import get_embedder
 app = Flask(__name__)
 
+print("Loading model and tokenizer...")
 # ── Constants ─────────────────────────────────────────────────────────────────
 BASE_MODEL   = "studio-ousia/luke-large-lite"
 NUM_CLASSES  = 17
@@ -32,10 +36,10 @@ SDG_LABELS = [
     'SDG 17: Strengthen the means of implementation and revitalize the Global Partnership for Sustainable Development'
 ]
 
+print("Model and tokenizer loaded successfully.")
 # ── Global Load (Happens once at server startup) ──────────────────────────────
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 tokenizer = AutoTokenizer.from_pretrained(BASE_MODEL)
-print(SDG_LABELS)
 model = SDGClassifier(
     model_path=BASE_MODEL,
     pooler_dropout=0.26,
@@ -54,8 +58,6 @@ model.to(device).eval()
 def predict():
     data = request.json
     text = data.get("text", "")
-    # print(f"{text}\n from the predict_route")
-    text = "This software provides a user-friendly website that allows the public to easily find and access government data. As a digital public good, it strengthens institutional infrastructure by increasing transparency and openness in public administration."
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
@@ -90,9 +92,36 @@ def predict():
     })
 
 
+@app.route("/similarities", methods=["POST"])
+def predict_cosine():
+    data = request.json
+    text = data.get("text", "")
+    label_texts = data.get("label_texts", SDG_DESCS)
+
+    if not text:
+        return jsonify({"error": "No text provided"}), 400
+
+    # Clean text using your existing utility
+    # cleaned_text = cleaner(text)
+
+    emb = get_embedder()
+    v_text = emb.encode([text], normalize_embeddings=True)[0]
+    v_lbls = emb.encode(label_texts, normalize_embeddings=True)
+    sims = np.dot(v_lbls, v_text)  
+    sims = (sims - sims.min()) / (sims.max() - sims.min() + 1e-8)  # Normalize to 0..1
+
+    return jsonify({
+        "similarities": {label: round(float(sim), 4) for label, sim in zip(label_texts, sims)},
+        
+    })
+
+
+
 @app.route('/', methods=['GET'])
 def hello():
     return jsonify({'message': 'Hello, World!'})
+
+
 
 if __name__ == "__main__":
     app.run(port = 9010)

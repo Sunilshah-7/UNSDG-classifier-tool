@@ -7,6 +7,7 @@ import EditModal from "./editModal";
 import { SDGValue, ResultsData } from "@/types/main";
 import { IoIosInformationCircleOutline } from "react-icons/io";
 import { classifyByModel } from "@/services/api";
+
 /*
 Results Component
 - Displays the results of the SDG analysis
@@ -17,6 +18,30 @@ type ResultsProps = {
   results: ResultsData | null;
   setResults: (value: ResultsData | null) => void;
   setError: (value: string | null) => void;
+};
+
+const isNoSdgs = (predictions: ResultsData["predictions"]): boolean => {
+  if (predictions == null) return true;
+
+  if (Array.isArray(predictions)) {
+    return predictions.length === 0;
+  }
+
+  if (typeof predictions !== "object") return true;
+
+  const keys = Object.keys(predictions);
+  if (keys.length === 0) return true;
+
+  const values = Object.values(predictions as any);
+  return values.every((v) => {
+    if (v == null) return true;
+    if (typeof v === "number") return v <= 0;
+    if (typeof v === "object" && "prediction" in v) {
+      const num = Number((v as any).prediction);
+      return !Number.isFinite(num) || num <= 0;
+    }
+    return true;
+  });
 };
 
 const Results = ({ results, setResults, setError }: ResultsProps) => {
@@ -47,29 +72,6 @@ const Results = ({ results, setResults, setError }: ResultsProps) => {
     };
 
     try {
-      // const base = "http://127.0.0.1:5000/";
-      // let endpoint = "";
-
-      // switch (newTab) {
-      //   case "aurora":
-      //     endpoint = "api/classify_aurora";
-      //     break;
-      //   case "st-description":
-      //     endpoint = "api/classify_st_description";
-      //     break;
-      //   case "st-url":
-      //     endpoint = "api/classify_st_url";
-      //     break;
-      //   default:
-      //     endpoint = "api/classify_aurora";
-      // }
-
-      // const response = await axios.post(base + endpoint, requestData, {
-      //   headers: {
-      //     "Content-Type": "application/json",
-      //   },
-      // });
-
       const response = await classifyByModel(
         newTab as "aurora" | "st-description" | "st-url",
         requestData,
@@ -124,15 +126,13 @@ const Results = ({ results, setResults, setError }: ResultsProps) => {
   };
 
   const handleDownload = () => {
-    if (!results?.predictions) {
+    if (!results?.predictions || isNoSdgs(results.predictions)) {
       setError("No SDG predictions available.");
       return;
     }
+
     try {
-      const predictions = results.predictions as Record<
-        string,
-        number | SDGValue
-      >;
+      const predictions = results.predictions as Record<string, number | SDGValue>;
       const unsdgData = {
         sdg_analysis: {
           analyzed_at: new Date().toISOString(),
@@ -174,15 +174,15 @@ const Results = ({ results, setResults, setError }: ResultsProps) => {
     }
   };
 
+  const noSdgs = isNoSdgs(results?.predictions);
+
   return (
     <div className="min-h-screen bg-gradient-to-br">
       <main className="container mx-auto px-8 py-12">
         <div className="space-y-8">
           {/* Header with back button */}
           <div className="flex items-center justify-between">
-            <h1 className="text-4xl font-bold text-black">
-              UN SDG Analysis Results
-            </h1>
+            <h1 className="text-4xl font-bold text-black">UN SDG Analysis Results</h1>
             <button
               onClick={() => {
                 setResults(null);
@@ -205,18 +205,13 @@ const Results = ({ results, setResults, setError }: ResultsProps) => {
 
           {/* Repository URL */}
           <div className="bg-white rounded-xl p-6 shadow-lg">
-            <h3 className="text-lg font-semibold text-gray-700 mb-2">
-              Analyzed Repository:
-            </h3>
-            <p className="text-purple-700 font-medium break-all">
-              {results?.projectUrl ?? "—"}
-            </p>
+            <h3 className="text-lg font-semibold text-gray-700 mb-2">Analyzed Repository:</h3>
+            <p className="text-purple-700 font-medium break-all">{results?.projectUrl ?? "—"}</p>
           </div>
+
           {/* Results Display */}
           <div className="space-y-6">
-            <h3 className="text-2xl font-semibold text-gray-800">
-              UN SDG Goals Analysis
-            </h3>
+            <h3 className="text-2xl font-semibold text-gray-800">UN SDG Goals Analysis</h3>
 
             {/* Vertical Tabs Layout */}
             <div className="flex gap-6">
@@ -294,8 +289,7 @@ const Results = ({ results, setResults, setError }: ResultsProps) => {
                         <IoIosInformationCircleOutline className="ml-2 text-purple-600 cursor-help" />
                         <span className="invisible group-hover:visible absolute left-1/2 -translate-x-1/2 bottom-full mb-2 w-48 px-3 py-2 text-xs text-white bg-gray-800 rounded-lg shadow-lg z-10 whitespace-normal">
                           This is a sentence transformer modal from Huggingface
-                          that analyzes the github repository URL and all its
-                          metadata.
+                          that analyzes the github repository URL and all its metadata.
                           <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-gray-800"></span>
                         </span>
                       </span>
@@ -309,32 +303,39 @@ const Results = ({ results, setResults, setError }: ResultsProps) => {
                 {isLoadingTab ? (
                   <div className="flex items-center justify-center py-20">
                     <AiOutlineLoading3Quarters className="animate-spin text-purple-600 text-4xl" />
-                    <span className="ml-3 text-gray-600">
-                      Loading model results...
-                    </span>
+                    <span className="ml-3 text-gray-600">Loading model results...</span>
                   </div>
                 ) : results ? (
-                  <>
-                    {/* SDG Cards Grid */}
-                    <CardGrid sdgPredictions={results.predictions} />
-                    {/* Action Buttons */}
-                    <div className="flex justify-end mt-6">
-                      <button
-                        onClick={handleDownload}
-                        className="cursor-pointer mx-4 px-4 py-2 bg-white text-purple-600 border border-purple-600 rounded-md hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
-                      >
-                        <span className="flex items-center">
-                          Yes, Download SDG Analysis File
-                        </span>
-                      </button>
-                      <button
-                        onClick={handleChanges}
-                        className="cursor-pointer px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-200"
-                      >
-                        Maybe, we need some edits
-                      </button>
+                  noSdgs ? (
+                    <div className="py-16">
+                      <div className="text-center px-4">
+                        <h2 className="text-3xl font-bold text-black">
+                          This project does not satisfy any SDG
+                        </h2>
+                      </div>
                     </div>
-                  </>
+                  ) : (
+                    <>
+                      {/* SDG Cards Grid */}
+                      <CardGrid sdgPredictions={results.predictions} />
+
+                      {/* Action Buttons */}
+                      <div className="flex justify-end mt-6">
+                        <button
+                          onClick={handleDownload}
+                          className="cursor-pointer mx-4 px-4 py-2 bg-white text-purple-600 border border-purple-600 rounded-md hover:bg-purple-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+                        >
+                          <span className="flex items-center">Yes, Download SDG Analysis File</span>
+                        </button>
+                        <button
+                          onClick={handleChanges}
+                          className="cursor-pointer px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors duration-200"
+                        >
+                          Maybe, we need some edits
+                        </button>
+                      </div>
+                    </>
+                  )
                 ) : (
                   <RawResults results={results} />
                 )}
@@ -345,7 +346,7 @@ const Results = ({ results, setResults, setError }: ResultsProps) => {
       </main>
 
       {/* Edit SDG Predictions Modal */}
-      {isModalOpen && (
+      {isModalOpen && results && !noSdgs && (
         <EditModal
           editableResults={editableResults || {}}
           setEditableResults={setEditableResults}
@@ -358,3 +359,4 @@ const Results = ({ results, setResults, setError }: ResultsProps) => {
 };
 
 export default Results;
+
